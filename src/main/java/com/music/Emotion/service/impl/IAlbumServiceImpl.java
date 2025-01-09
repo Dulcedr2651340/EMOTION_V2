@@ -72,32 +72,32 @@ public class IAlbumServiceImpl implements IAlbumService {
                     existingAlbum.setTitle(albumRequest.getTitle());
                     existingAlbum.setReleaseDate(albumRequest.getReleaseDate());
                     existingAlbum.setDescription(albumRequest.getDescription());
-                    log.debug("Updated album fields with title: {}, release date: {}, description: {}",
+                    log.debug("Updated album fields - Title: {}, Release Date: {}, Description: {}",
                             albumRequest.getTitle(), albumRequest.getReleaseDate(), albumRequest.getDescription());
 
-                    // Actualizar géneros si existen nuevos
-                    if (albumRequest.getGenreIds() != null && !albumRequest.getGenreIds().isEmpty()) {
+                    // Actualizar géneros
+                    if (albumRequest.getGenreIds() != null) {
+                        log.debug("Current genres before update: {}", existingAlbum.getGenres());
+                        existingAlbum.getGenres().removeIf(genre -> !albumRequest.getGenreIds().contains(genre.getId()));
                         Set<Genre> newGenres = new HashSet<>(genreRepository.findAllById(albumRequest.getGenreIds()));
                         existingAlbum.getGenres().addAll(newGenres);
-                        log.debug("Added genres: {}", newGenres);
+                        log.debug("Updated genres to: {}", existingAlbum.getGenres());
                     }
 
-                    // Actualizar canciones si existen nuevas
-                    if (albumRequest.getSongIds() != null && !albumRequest.getSongIds().isEmpty()) {
+                    // Actualizar canciones
+                    if (albumRequest.getSongIds() != null) {
+                        log.debug("Current songs before update: {}", existingAlbum.getSongs());
+                        existingAlbum.getSongs().forEach(song -> song.setAlbum(null));
+                        existingAlbum.getSongs().clear();
                         List<Song> newSongs = songRepository.findAllById(albumRequest.getSongIds());
-
-                        // Agregar nuevas canciones sin eliminar las existentes
                         newSongs.forEach(song -> {
                             song.setAlbum(existingAlbum);
-                            if (!existingAlbum.getSongs().contains(song)) {
-                                existingAlbum.getSongs().add(song);
-                            }
+                            existingAlbum.getSongs().add(song);
                         });
-
-                        log.debug("Added songs: {}", newSongs);
+                        log.debug("Updated songs to: {}", existingAlbum.getSongs());
                     }
 
-                    // Guardar el álbum actualizado
+                    // Guardar cambios
                     Album updatedAlbum = albumRepository.save(existingAlbum);
                     log.info("Album with ID: {} updated successfully", id);
 

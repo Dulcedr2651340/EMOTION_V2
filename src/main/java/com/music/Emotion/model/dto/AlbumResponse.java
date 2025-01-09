@@ -15,6 +15,9 @@ public class AlbumResponse {
     private LocalDate releaseDate;
     private String description;
     private String status;
-    private List<Integer> genreIds;
+
     private List<Integer> songIds;
+    private List<Integer> genreIds;
+    private List<Integer> artistIds;
+    private List<Integer> rolesIds;
 }
