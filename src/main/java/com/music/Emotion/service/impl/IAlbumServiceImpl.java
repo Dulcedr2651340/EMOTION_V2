@@ -6,14 +6,12 @@ import com.music.Emotion.mapper.AlbumMapper;
 import com.music.Emotion.model.dto.AlbumRequest;
 import com.music.Emotion.model.dto.AlbumResponse;
 import com.music.Emotion.model.dto.GenreRequest;
-import com.music.Emotion.model.entity.Album;
-import com.music.Emotion.model.entity.Genre;
-import com.music.Emotion.model.entity.Song;
-import com.music.Emotion.repository.AlbumRepository;
-import com.music.Emotion.repository.GenreRepository;
-import com.music.Emotion.repository.SongRepository;
+import com.music.Emotion.model.entity.*;
+import com.music.Emotion.repository.*;
 import com.music.Emotion.service.IAlbumService;
 import com.music.Emotion.service.relationship.AlbumGenreService;
+import com.music.Emotion.service.relationship.AlbumRoleService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +29,9 @@ public class IAlbumServiceImpl implements IAlbumService {
     private final AlbumGenreService albumGenreService;
     private final GenreRepository genreRepository;
     private final SongRepository songRepository;
+    private final RoleRepository roleRepository;
+    private final ArtistRepository artistRepository;
+    private final AlbumRoleService albumRoleService;
 
     @Override
     public List<AlbumResponse> getAllAlbums() {
@@ -62,54 +63,69 @@ public class IAlbumServiceImpl implements IAlbumService {
 
     @Override
     public AlbumResponse updateAlbum(Integer id, AlbumRequest albumRequest) {
-        log.info("Attempting to update album with ID: {}", id);
+        // Log de entrada al método
+        log.info("Starting updateAlbum with ID: {}", id);
 
-        return albumRepository.findById(id)
-                .map(existingAlbum -> {
-                    log.info("Album found with ID: {}. Updating details...", id);
+        // 1. Recuperar la entidad original
+        log.debug("Searching album by ID: {}", id);
+        Album existingAlbum = albumRepository.findById(id)
+                .orElseThrow(() -> new AlbumNotFoundException("No album found with ID: " + id));
 
-                    // Actualizar campos básicos
-                    existingAlbum.setTitle(albumRequest.getTitle());
-                    existingAlbum.setReleaseDate(albumRequest.getReleaseDate());
-                    existingAlbum.setDescription(albumRequest.getDescription());
-                    log.debug("Updated album fields - Title: {}, Release Date: {}, Description: {}",
-                            albumRequest.getTitle(), albumRequest.getReleaseDate(), albumRequest.getDescription());
+        log.info("Album found: {}", existingAlbum.getTitle());
 
-                    // Actualizar géneros
-                    if (albumRequest.getGenreIds() != null) {
-                        log.debug("Current genres before update: {}", existingAlbum.getGenres());
-                        existingAlbum.getGenres().removeIf(genre -> !albumRequest.getGenreIds().contains(genre.getId()));
-                        Set<Genre> newGenres = new HashSet<>(genreRepository.findAllById(albumRequest.getGenreIds()));
-                        existingAlbum.getGenres().addAll(newGenres);
-                        log.debug("Updated genres to: {}", existingAlbum.getGenres());
-                    }
+        // 2. Actualizar campos simples
+        if (albumRequest.getTitle() != null) {
+            log.debug("Updating album title to: {}", albumRequest.getTitle());
+            existingAlbum.setTitle(albumRequest.getTitle());
+        }
+        if (albumRequest.getReleaseDate() != null) {
+            log.debug("Updating album releaseDate to: {}", albumRequest.getReleaseDate());
+            existingAlbum.setReleaseDate(albumRequest.getReleaseDate());
+        }
+        if (albumRequest.getDescription() != null) {
+            log.debug("Updating album description to: {}", albumRequest.getDescription());
+            existingAlbum.setDescription(albumRequest.getDescription());
+        }
 
-                    // Actualizar canciones
-                    if (albumRequest.getSongIds() != null) {
-                        log.debug("Current songs before update: {}", existingAlbum.getSongs());
-                        existingAlbum.getSongs().forEach(song -> song.setAlbum(null));
-                        existingAlbum.getSongs().clear();
-                        List<Song> newSongs = songRepository.findAllById(albumRequest.getSongIds());
-                        newSongs.forEach(song -> {
-                            song.setAlbum(existingAlbum);
-                            existingAlbum.getSongs().add(song);
-                        });
-                        log.debug("Updated songs to: {}", existingAlbum.getSongs());
-                    }
+        // 3. Agregar relaciones sin borrar lo existente
+        if (albumRequest.getGenreIds() != null && !albumRequest.getGenreIds().isEmpty()) {
+            log.debug("Adding genres with IDs: {}", albumRequest.getGenreIds());
+            List<Genre> newGenres = genreRepository.findAllById(albumRequest.getGenreIds());
+            existingAlbum.getGenres().addAll(newGenres);
+        }
+        if (albumRequest.getSongIds() != null && !albumRequest.getSongIds().isEmpty()) {
+            log.debug("Adding songs with IDs: {}", albumRequest.getSongIds());
+            List<Song> newSongs = songRepository.findAllById(albumRequest.getSongIds());
+            for (Song s : newSongs) {
+                s.setAlbum(existingAlbum);
+            }
+            existingAlbum.getSongs().addAll(newSongs);
+        }
+        if (albumRequest.getArtistIds() != null && !albumRequest.getArtistIds().isEmpty()) {
+            log.debug("Adding artists with IDs: {}", albumRequest.getArtistIds());
+            List<Artist> newArtists = artistRepository.findAllById(albumRequest.getArtistIds());
+            existingAlbum.getArtists().addAll(newArtists);
+        }
+        if (albumRequest.getRolesIds() != null && !albumRequest.getRolesIds().isEmpty()) {
+            log.debug("Adding roles with IDs: {}", albumRequest.getRolesIds());
+            List<Role> newRoles = roleRepository.findAllById(albumRequest.getRolesIds());
+            existingAlbum.getRoles().addAll(newRoles);
+        }
 
-                    // Guardar cambios
-                    Album updatedAlbum = albumRepository.save(existingAlbum);
-                    log.info("Album with ID: {} updated successfully", id);
+        // 4. Guardar el álbum
+        log.info("Saving updated album: {}", existingAlbum.getTitle());
+        Album albumSave = albumRepository.save(existingAlbum);
 
-                    return updatedAlbum;
-                })
-                .map(albumMapper::toAlbumResponse)
-                .orElseThrow(() -> {
-                    log.error("Album with ID: {} not found", id);
-                    return new AlbumNotFoundException("Album with ID " + id + " not found");
-                });
+        // 5. Construir y devolver el AlbumResponse en el mismo método
+        log.info("Album with ID: {} updated successfully", albumSave.getId());
+        return AlbumResponse.builder()
+                .id(albumSave.getId())
+                .title(albumSave.getTitle())
+                .releaseDate(albumSave.getReleaseDate())
+                .description(albumSave.getDescription())
+                .status(albumSave.getStatus())
+                .build();
     }
-
     @Override
     public AlbumResponse findById(Integer id) {
         log.info("Finding album with ID: {}", id); // Indicando que se está buscando un album con un ID específico

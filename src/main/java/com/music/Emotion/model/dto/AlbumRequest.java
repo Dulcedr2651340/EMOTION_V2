@@ -27,4 +27,11 @@ public class AlbumRequest {
 
     @NotEmpty(message = "The field songIds cannot be empty or null.")
     private Set<Integer> songIds;  // Lista de IDs de canciones asociados con el album
+
+    @NotEmpty(message = "The field songIds cannot be empty or null.")
+    private Set<Integer> artistIds;  // Lista de IDs de artistas asociados con el álbum
+
+    @NotEmpty(message = "The field songIds cannot be empty or null.")
+    private Set<Integer> rolesIds;  // Lista de IDs de roles asociados con el álbum
+
 }
