@@ -81,49 +81,74 @@ public class IArtistServiceImpl implements IArtistService {
 
     @Override
     public ArtistResponse updateArtist(Integer id, ArtistRequest artistRequest) {
-        log.info("Attempting to artist with ID: {}", id); // Indicando que se está intentando actualizar un artista con un ID específico
-        return artistRepository.findById(id)
-                .map(existingArtist -> {
-                    log.info("Artist found with ID: {}. Updating details...", id); // Indicando que el artist fue encontrado
+        // Log de entrada al método
+        log.info("Starting updateArtist with ID: {}", id);
 
-                    // Actualizar los campos de la entidad Artist con los datos de artistRequest
-                    existingArtist.setName(artistRequest.getName());
-                    existingArtist.setStageName(artistRequest.getStageName());
-                    existingArtist.setType(artistRequest.getType());
-                    existingArtist.setCountry(artistRequest.getCountry());
-                    existingArtist.setDebutDate(artistRequest.getDebutDate());
+        // 1. Recuperar la entidad original
+        log.debug("Searching artist by ID: {}", id);
+        Artist existingArtist = artistRepository.findById(id)
+                .orElseThrow(() -> new ArtistNotFoundException("No artist found with ID: " + id));
 
-                    // Obtener los artistas usando el repositorio de artista y asignarlas al género
-                    Set<Genre> genres = new HashSet<>(genreRepository.findAllById(artistRequest.getGenreIds()));
-                    existingArtist.setGenres(genres);
-                    log.debug("Associated artist with genre: {}", genres); // Información sobre las canciones asociadas
+        log.info("Artist found: {}", existingArtist.getName());
 
-                    // Obtener los artistas usando el repositorio de artista y asignarlas al album
-                    Set<Album> albums = new HashSet<>(albumRepository.findAllById(artistRequest.getAlbumIds()));
-                    existingArtist.setAlbums(albums);
-                    log.debug("Associated artist with Album: {}", genres); // Información sobre las canciones asociadas
+        // 2. Actualizar campos simples
+        if (artistRequest.getName() != null) {
+            log.debug("Updating artist name to: {}", artistRequest.getName());
+            existingArtist.setName(artistRequest.getName());
+        }
+        if (artistRequest.getStageName() != null) {
+            log.debug("Updating artist stageName to: {}", artistRequest.getStageName());
+            existingArtist.setStageName(artistRequest.getStageName());
+        }
+        if (artistRequest.getType() != null) {
+            log.debug("Updating artist type to: {}", artistRequest.getType());
+            existingArtist.setType(artistRequest.getType());
+        }
+        if (artistRequest.getCountry() != null) {
+            log.debug("Updating artist country to: {}", artistRequest.getCountry());
+            existingArtist.setCountry(artistRequest.getCountry());
+        }
+        if (artistRequest.getDebutDate() != null) {
+            log.debug("Updating artist debutDate to: {}", artistRequest.getDebutDate());
+            existingArtist.setDebutDate(artistRequest.getDebutDate());
+        }
 
-                    // Obtener los artistas usando el repositorio de artista y asignarlas al role
-                    Set<Role> roles = new HashSet<>(roleRepository.findAllById(artistRequest.getRoleIds()));
-                    existingArtist.setRoles(roles);
-                    log.debug("Associated artist with Role: {}", genres); // Información sobre las canciones asociadas
+        // 3. Agregar relaciones sin borrar lo existente
+        if (artistRequest.getGenreIds() != null && !artistRequest.getGenreIds().isEmpty()) {
+            log.debug("Adding genres with IDs: {}", artistRequest.getGenreIds());
+            List<Genre> newGenres = genreRepository.findAllById(artistRequest.getGenreIds());
+            existingArtist.getGenres().addAll(newGenres);
+        }
+        if (artistRequest.getAlbumIds() != null && !artistRequest.getAlbumIds().isEmpty()) {
+            log.debug("Adding albums with IDs: {}", artistRequest.getAlbumIds());
+            List<Album> newAlbums = albumRepository.findAllById(artistRequest.getAlbumIds());
+            existingArtist.getAlbums().addAll(newAlbums);
+        }
+        if (artistRequest.getRoleIds() != null && !artistRequest.getRoleIds().isEmpty()) {
+            log.debug("Adding roles with IDs: {}", artistRequest.getRoleIds());
+            List<Role> newRoles = roleRepository.findAllById(artistRequest.getRoleIds());
+            existingArtist.getRoles().addAll(newRoles);
+        }
+        if (artistRequest.getSongIds() != null && !artistRequest.getSongIds().isEmpty()) {
+            log.debug("Adding songs with IDs: {}", artistRequest.getSongIds());
+            List<Song> newSongs = songRepository.findAllById(artistRequest.getSongIds());
+            existingArtist.getSongs().addAll(newSongs);
+        }
 
-                    // Obtener los artistas usando el repositorio de artista y asignarlas al song
-                    Set<Song> songs = new HashSet<>(songRepository.findAllById(artistRequest.getSongIds()));
-                    existingArtist.setSongs(songs);
-                    log.debug("Associated artist with song: {}", songs); // Información sobre las canciones asociadas
+        // 4. Guardar el artista
+        log.info("Saving updated artist: {}", existingArtist.getName());
+        Artist artistSave = artistRepository.save(existingArtist);
 
-                    // Guardar el artist actualizado en la base de datos
-                    Artist updatedArtist = artistRepository.save(existingArtist);
-                    log.info("Artist with ID: {} updated successfully", id); // Indicando que la actualización fue exitosa
-
-                    return updatedArtist;
-                })
-               .map(artistMapper::toArtistResponse)
-                .orElseThrow(() -> {
-                    log.error("Artist with ID: {} not found", id); // Indicando que no se encontró el artist con el ID especificado
-                    return new ArtistNotFoundException("Artist with ID " + id + " not found");
-                });
+        // 5. Construir y devolver el ArtistResponse en el mismo método
+        log.info("Artist with ID: {} updated successfully", artistSave.getId());
+        return ArtistResponse.builder()
+                .id(artistSave.getId())
+                .name(artistSave.getName())
+                .stageName(artistSave.getStageName())
+                .type(artistSave.getType())
+                .country(artistSave.getCountry())
+                .debutDate(artistSave.getDebutDate())
+                .build();
     }
 
     @Override
